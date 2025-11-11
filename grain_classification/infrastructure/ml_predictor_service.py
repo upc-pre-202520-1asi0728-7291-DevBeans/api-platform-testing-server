@@ -4,8 +4,13 @@ import os
 import requests
 import time
 
+<<<<<<< Updated upstream
 # URL del modelo en Blob Storage (configurada en Azure App Settings)
 MODEL_BLOB_URL = os.environ.get("MODEL_BLOB_URL")
+=======
+# This URL will be set via an Azure App Setting/Environment Variable
+MODEL_BLOB_URL = os.environ.get("MODEL_URL")
+>>>>>>> Stashed changes
 
 
 class MLPredictorService:
