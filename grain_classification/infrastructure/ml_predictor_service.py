@@ -1,16 +1,18 @@
 import numpy as np
 from tensorflow import keras
 import os
-import requests  # Used for downloading the model from the public URL
+import requests
 import time
 
-# This URL will be set via an Azure App Setting/Environment Variable
+# URL del modelo en Blob Storage (configurada en Azure App Settings)
 MODEL_BLOB_URL = os.environ.get("MODEL_BLOB_URL")
 
 
 class MLPredictorService:
     """
-    Implementación de infraestructura para cargar y ejecutar el modelo CNN.
+    Servicio de predicción con estrategia de carga inteligente:
+    1. Intenta cargar desde ruta local primero
+    2. Si falla, descarga desde Blob Storage
     """
 
     def __init__(self, model_path: str, color_classes: list[str]):
@@ -18,81 +20,115 @@ class MLPredictorService:
         self.color_classes = color_classes
         self.cnn_model = self._load_model()
 
-    def _download_model(self) -> bool:
-        """Downloads the .h5 model from the Azure Blob URL."""
+    def _download_model_from_blob(self) -> bool:
+        """Descarga el modelo de ml desde Azure Blob Storage."""
         if not MODEL_BLOB_URL:
-            print("ERROR: MODEL_BLOB_URL no está configurada en las App Settings de Azure.")
+            print("ERROR: MODEL_BLOB_URL no está configurada en Azure App Settings.")
             return False
 
-        print(f"Modelo no encontrado. Iniciando descarga desde Blob Storage: {MODEL_BLOB_URL}")
+        print(f"Descargando modelo desde Blob Storage: {MODEL_BLOB_URL}")
 
         try:
-            # Create the directory structure (e.g., 'ml_models/')
+            # Crear el directorio si no existe
             os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
 
-            # Use requests to download the large file in chunks
-            response = requests.get(MODEL_BLOB_URL, stream=True)
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+            # Descargar con streaming para archivos grandes
+            response = requests.get(MODEL_BLOB_URL, stream=True, timeout=300)
+            response.raise_for_status()
 
-            # Save the content to the local path
+            # Guardar el archivo en chunks
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+
             with open(self.model_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        # Log progreso cada 50MB
+                        if downloaded % (50 * 1024 * 1024) == 0:
+                            print(
+                                f"  Descargado: {downloaded / (1024 ** 2):.1f} MB / {total_size / (1024 ** 2):.1f} MB")
 
-            print("Descarga del modelo exitosa.")
+            print(f"Descarga completada: {downloaded / (1024 ** 2):.1f} MB")
             return True
+
         except requests.exceptions.RequestException as e:
-            print(f"ERROR DE RED/DESCARGA (Blob Storage): {e}")
+            print(f"ERROR DE RED al descargar desde Blob Storage: {e}")
             return False
         except Exception as e:
-            print(f"ERROR al guardar el modelo descargado: {e}")
+            print(f"ERROR al guardar modelo descargado: {e}")
             return False
 
     def _load_model(self):
         """
-        Carga el modelo CNN real. Si no existe, intenta descargarlo.
+        Carga el modelo CNN con estrategia de fallback:
+        1. Intenta cargar desde ruta local
+        2. Si falla, descarga desde Blob Storage e intenta de nuevo
         """
-        # 1. Check if the file exists locally
-        if not os.path.exists(self.model_path):
-            # 2. If missing, attempt to download it
-            if not self._download_model():
-                # If download fails, fail the load process
-                return None
-            # Wait briefly to ensure file handle is released after writing (optional, but safer)
-            time.sleep(1)
+        # ESTRATEGIA 1: Intentar carga local primero
+        if os.path.exists(self.model_path):
+            try:
+                model = keras.models.load_model(self.model_path)
+                file_size = os.path.getsize(self.model_path) / (1024 ** 2)
+                print(f"Modelo CNN cargado desde ruta local: {self.model_path} ({file_size:.1f} MB)")
+                return model
+            except Exception as e:
+                print(f"Falló carga local del modelo: {e}")
+                print("   Intentando descarga desde Blob Storage...")
+                # Eliminar archivo corrupto
+                try:
+                    os.remove(self.model_path)
+                except:
+                    pass
 
-            # 3. Load the model from the local path
+        # ESTRATEGIA 2: Descargar desde Blob Storage
+        print(f"Modelo no encontrado localmente. Descargando desde Blob Storage...")
+
+        if not self._download_model_from_blob():
+            print("CRÍTICO: No se pudo descargar el modelo desde Blob Storage")
+            return None
+
+        # Esperar un momento para asegurar que el archivo esté completamente escrito
+        time.sleep(2)
+
+        # ESTRATEGIA 3: Intentar carga después de descarga
         try:
-            # Advertencia de Keras sobre métricas compiladas es normal en la carga
             model = keras.models.load_model(self.model_path)
-            print(f"Modelo CNN real cargado exitosamente desde: {self.model_path}")
+            print(f"Modelo CNN cargado exitosamente después de descarga")
             return model
         except Exception as e:
-            print(f"ERROR CRÍTICO AL CARGAR MODELO CNN: {e}")
+            print(f"CRÍTICO: Error al cargar modelo después de descarga: {e}")
             return None
 
     def predict_color_percentages(self, processed_image: np.ndarray) -> dict | None:
         """
         Predice los porcentajes de confianza para cada clase de color.
-        (This function remains the same as its prediction logic is sound)
         """
         if self.cnn_model is None:
-            return None  # El modelo no se cargó
+            print("Modelo no disponible para predicción")
+            return None
 
         try:
+            # Normalizar imagen
             normalized_image = processed_image / 255.0
             input_tensor = np.expand_dims(normalized_image, axis=0)
+
+            # Predicción
             raw_predictions = self.cnn_model.predict(input_tensor, verbose=0)[0]
 
+            # Convertir a diccionario
             predictions = {}
             for i, color_class in enumerate(self.color_classes):
                 predictions[color_class] = round(raw_predictions[i].item(), 3)
 
+            # Normalizar a 100%
             total_prob = sum(predictions.values())
             if total_prob > 0:
                 predictions = {k: (v / total_prob) * 100 for k, v in predictions.items()}
 
             return predictions
+
         except Exception as e:
-            print(f"Error durante la predicción de la CNN: {e}")
+            print(f"Error durante predicción CNN: {e}")
             return None

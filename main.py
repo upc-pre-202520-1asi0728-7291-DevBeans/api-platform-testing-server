@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import os
 
 from shared.infrastructure.persistence.database.repositories.settings import settings
 from shared.domain.database import init_db
@@ -8,6 +9,7 @@ from iam_profile.interfaces.rest.controllers.auth_controller import router as au
 from iam_profile.interfaces.rest.controllers.profile_controller import router as profile_router
 from coffee_lot_management.interfaces.rest.controllers.coffee_lot_controller import router as coffee_lot_router
 from grain_classification.interfaces.rest.controllers.classification_controller import router as classification_router
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -17,6 +19,14 @@ async def lifespan(_app: FastAPI):
     print("Database initialized successfully")
     print(f"{settings.PROJECT_NAME} is running")
     print(f"API Documentation: http://localhost:8000/docs")
+
+    # Verificar configuración del modelo
+    model_url = os.environ.get("MODEL_BLOB_URL")
+    if model_url:
+        safe_url = model_url.split('?')[0] if '?' in model_url else model_url
+        print(f"Model URL configured: {safe_url}")
+    else:
+        print("MODEL_BLOB_URL not configured - model will only load from local path")
 
     yield  # Aquí FastAPI empieza a aceptar peticiones
 
@@ -60,17 +70,25 @@ async def root():
         "status": "running"
     }
 
+
 @app.get("/health", tags=["Default Backend Status"])
 async def health_check():
-    """Health check endpoint"""
+    """Health check endpoint con verificación de configuración"""
+    model_configured = bool(os.environ.get("MODEL_BLOB_URL"))
+
     return {
         "status": "healthy",
-        "database": "connected"
+        "database": "connected",
+        "ml_model": {
+            "blob_storage_configured": model_configured,
+            "fallback_strategy": "local → blob storage"
+        }
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
