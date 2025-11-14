@@ -23,6 +23,7 @@ class UserCommandService:
         self.producer_repository = ProducerProfileRepository(db)
         self.cooperative_repository = CooperativeProfileRepository(db)
 
+
     def handle_register_producer(self, command: RegisterProducerCommand) -> User:
         """
         Registra un nuevo productor independiente
@@ -67,6 +68,7 @@ class UserCommandService:
         self.producer_repository.save(producer_profile)
 
         return user
+
 
     def handle_register_cooperative(self, command: RegisterCooperativeCommand) -> User:
         """
@@ -114,6 +116,7 @@ class UserCommandService:
 
         return user
 
+
     def handle_update_profile(self, command: UpdateProfileCommand) -> User:
         """
         Actualiza el perfil de un usuario
@@ -128,24 +131,26 @@ class UserCommandService:
         if user.user_type == UserType.PRODUCER:
             profile = self.producer_repository.find_by_user_id(user.id)
             if profile:
-                if command.first_name:
+                # Solo actualiza los campos que no son None
+                if command.first_name is not None:
                     profile.first_name = command.first_name
-                if command.last_name:
+                if command.last_name is not None:
                     profile.last_name = command.last_name
-                if command.phone_number:
+                if command.phone_number is not None:
                     profile.phone_number = command.phone_number
-                if command.city:
+                if command.city is not None:
                     profile.city = command.city
-                if command.farm_name:
+                if command.farm_name is not None:
                     profile.farm_name = command.farm_name
-                if command.hectares:
+                if command.hectares is not None:
                     profile.hectares = command.hectares
-                if command.production_capacity:
+                if command.production_capacity is not None:
                     profile.production_capacity = command.production_capacity
 
                 self.producer_repository.save(profile)
 
         return user
+
 
     def handle_change_password(self, command: ChangePasswordCommand) -> User:
         """

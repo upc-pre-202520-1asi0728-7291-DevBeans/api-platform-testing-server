@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: list = ["*"]
 
+    # Cloudinary Configuration
+    CLOUDINARY_CLOUD_NAME: str = "your-cloud-name"
+    CLOUDINARY_API_KEY: str = "your-api-key"
+    CLOUDINARY_API_SECRET: str = "your-api-secret"
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+psycopg://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"

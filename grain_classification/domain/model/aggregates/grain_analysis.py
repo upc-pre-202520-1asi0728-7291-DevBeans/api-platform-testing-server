@@ -13,6 +13,10 @@ class GrainAnalysis(AuditableAbstractAggregateRoot):
     # Clave foránea al agregado raíz
     session_id = Column(Integer, ForeignKey("classification_sessions.id"), nullable=False)
 
+    # URL de la imagen del grano en Cloudinary
+    image_url = Column(String, nullable=True)
+    cloudinary_public_id = Column(String, nullable=True)
+
     # Almacena la predicción de 4 clases de color (JSONB)
     color_percentages = Column(JSON, nullable=True)
 
