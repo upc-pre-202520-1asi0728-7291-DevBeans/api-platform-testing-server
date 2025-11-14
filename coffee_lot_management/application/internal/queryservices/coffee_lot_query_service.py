@@ -30,17 +30,20 @@ class CoffeeLotQueryService:
         return coffee_lot
 
     def handle_get_coffee_lots_by_producer(self, query: GetCoffeeLotsByProducerQuery) -> list[type[CoffeeLot]]:
-        """Esto lista los lotes filtrados por productor y criterios opcionales"""
+        """Lista los lotes filtrados por productor y criterios opcionales"""
+        # Obtener todos los lotes del productor primero
+        lots = self.repository.find_by_producer_id(query.producer_id)
+
+        # Filtrar por estado si se especifica
         if query.status:
             try:
-                pass
+                status_enum = LotStatus[query.status.upper()]
+                lots = [lot for lot in lots if lot.status == status_enum]
             except KeyError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid status: {query.status}"
                 )
-        else:
-            lots = self.repository.find_by_producer_id(query.producer_id)
 
         # Filtrar por año de cosecha si se especifica
         if query.harvest_year:
