@@ -1,70 +1,134 @@
-from grain_classification.domain.model.valueobjetcs.quality_models import QUALITY_THRESHOLDS, QUALITY_CATEGORIES
+# grain_classification/domain/services/grading_service.py
+
+from typing import Dict, Any, List
+from grain_classification.domain.model.valueobjetcs.quality_models import QUALITY_THRESHOLDS
 
 
 class QualityGradingService:
     """
-    Servicio de dominio para aplicar reglas de negocio de clasificación.
-    (Lógica de quality_classifier.py)
+    Servicio de dominio para evaluación de calidad de granos
     """
 
-    def __init__(self):
-        self.quality_thresholds = QUALITY_THRESHOLDS
-        self.quality_categories = QUALITY_CATEGORIES
-
-    def calculate_final_quality(self, base_score: float, source_category: str, features: dict) -> dict:
+    def calculate_final_quality(
+            self,
+            base_score: float,
+            winning_class: str,
+            features: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
-        Combina la puntuación de IA con las características de CV (forma).
+        Calcula la puntuación final y categoría de calidad considerando:
+        - Score base del modelo CNN
+        - Características morfológicas (forma, tamaño)
+        - Clase de color predominante
         """
-        shape_score = self._evaluate_shape_quality(features)
+        adjustments = {}
+        final_score = base_score
 
-        # Ponderación 70% IA (color) / 30% CV (forma)
-        final_score = (base_score * 0.7) + (shape_score * 0.3)
-        final_category = self._determine_quality_category(final_score)
+        # Ajuste por circularidad (forma)
+        circularity = features.get('circularity', 0)
+        if circularity < 0.7:
+            adjustment = -0.05
+            adjustments['shape_penalty'] = adjustment
+            final_score += adjustment
+
+        # Ajuste por tamaño (área)
+        area = features.get('area', 0)
+        if area < 500:
+            adjustment = -0.03
+            adjustments['size_penalty'] = adjustment
+            final_score += adjustment
+        elif area > 2000:
+            adjustment = 0.02
+            adjustments['size_bonus'] = adjustment
+            final_score += adjustment
+
+        # Asegurar que el score esté en rango [0, 1]
+        final_score = max(0.0, min(1.0, final_score))
+
+        # Determinar categoría de calidad
+        quality_category = self._get_quality_category(final_score)
 
         return {
-            'quality_category': final_category,
-            'final_score': round(final_score, 3),
-            'base_quality_score': base_score,
-            'shape_score': shape_score,
-            'source_category (color)': source_category
+            'base_score': base_score,
+            'adjustments': adjustments,
+            'final_score': final_score,
+            'quality_category': quality_category,
+            'color_class': winning_class
         }
 
     @staticmethod
-    def _evaluate_shape_quality(features: dict) -> float:
-        """Evalúa la calidad de la forma."""
-        shape_score = 1.0
-        circularity = features.get('circularity', 0.5)
-        if circularity < 0.7:
-            shape_score -= 0.3
-        if features.get('has_cracks', False):
-            shape_score -= 0.2
-        return max(0.0, shape_score)
+    def _get_quality_category(score: float) -> str:
+        """
+        Mapea el score (0-1) a una categoría de calidad
+        """
+        if score >= QUALITY_THRESHOLDS['Specialty']:
+            return 'Specialty'
+        elif score >= QUALITY_THRESHOLDS['Premium']:
+            return 'Premium'
+        elif score >= QUALITY_THRESHOLDS['A']:
+            return 'A'
+        elif score >= QUALITY_THRESHOLDS['B']:
+            return 'B'
+        else:
+            return 'C'
 
-    def _determine_quality_category(self, final_score: float) -> str:
-        """Asigna la categoría de negocio final."""
-        for category, threshold in self.quality_thresholds.items():
-            if final_score >= threshold:
-                return category
-        return 'C'
+    @staticmethod
+    def generate_batch_report(bean_assessments: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Genera un reporte consolidado del lote completo
+        """
+        if not bean_assessments:
+            return {
+                'total_beans_analyzed': 0,
+                'overall_batch_quality': 0.0,
+                'predominant_category': 'N/A',
+                'category_distribution': {},
+                'average_score': 0.0
+            }
 
-    def generate_batch_report(self, bean_assessments: list[dict]) -> dict:
-        """Genera el reporte consolidado para el lote (Sesión de Clasificación)."""
         total_beans = len(bean_assessments)
-        if total_beans == 0:
-            return {"error": "No se analizaron granos"}
+        total_score = sum(assessment['final_score'] for assessment in bean_assessments)
+        average_score = total_score / total_beans
 
-        category_count = {category: 0 for category in self.quality_categories}
-        for bean in bean_assessments:
-            category = bean['quality_category']
-            if category in category_count:
-                category_count[category] += 1
+        # Contar distribución por categoría
+        category_counts = {}
+        for assessment in bean_assessments:
+            category = assessment['quality_category']
+            category_counts[category] = category_counts.get(category, 0) + 1
 
-        avg_score = sum(bean['final_score'] for bean in bean_assessments) / total_beans
-        lot_quality = self._determine_quality_category(avg_score)
+        # Encontrar categoría predominante
+        predominant_category = max(category_counts.items(), key=lambda x: x[1])[0] if category_counts else 'N/A'
+
+        # Crear distribución con porcentajes
+        category_distribution = {}
+        for category, count in category_counts.items():
+            percentage = (count / total_beans) * 100
+            category_distribution[category] = {
+                'count': count,
+                'percentage': percentage
+            }
+
+        # Asegurar que todas las categorías existan (incluso con 0)
+        for category in ['Specialty', 'Premium', 'A', 'B', 'C']:
+            if category not in category_distribution:
+                category_distribution[category] = {
+                    'count': 0,
+                    'percentage': 0.0
+                }
+
+        # Calidad general del lote (en porcentaje 0-100)
+        overall_batch_quality = average_score * 100
 
         return {
             'total_beans_analyzed': total_beans,
-            'category_distribution': category_count,
-            'average_quality_score': round(avg_score, 3),
-            'lot_quality': lot_quality
+            'overall_batch_quality': round(overall_batch_quality, 2),
+            'predominant_category': predominant_category,
+            'category_distribution': category_distribution,
+            'average_score': round(average_score, 4),
+            'quality_breakdown': {
+                'excellent': category_counts.get('Specialty', 0) + category_counts.get('Premium', 0),
+                'good': category_counts.get('A', 0),
+                'fair': category_counts.get('B', 0),
+                'poor': category_counts.get('C', 0)
+            }
         }
