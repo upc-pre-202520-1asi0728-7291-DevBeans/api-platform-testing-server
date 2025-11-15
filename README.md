@@ -1,6 +1,6 @@
-# BeanDetect AI - Backend API
+# BeanDetect AI - Backend API Testing Server
 
-Backend desarrollado con FastAPI, Python y PostgreSQL (Supabase) siguiendo los patrones **CQRS** (Command Query Responsibility Segregation) y **DDD** (Domain-Driven Design).
+Servidor de Pruebas para el Backend desarrollado con FastAPI, Python y PostgreSQL (Supabase) siguiendo los patrones **CQRS** (Command Query Responsibility Segregation) y **DDD** (Domain-Driven Design).
 
 ## 🏗️ Arquitectura
 
@@ -11,16 +11,10 @@ BeanDetectAI/
 ├── shared/                 # Código compartido y configuración global entre bounded contexts
 ├── iam_profile/            # Bounded Context: IAM & Profile
 ├── coffee_lot_management/  # Bounded Context: Coffee Lot Management
-├── grain_classification/   # Bounded Context: Grain Classification (TODO)
+├── grain_classification/   # Bounded Context: Grain Classification
 ├── traceability_certification/ # Bounded Context: Traceability & Certification (TODO)
 └── reporting_analytics/    # Bounded Context: Reporting & Analytics (TODO)
 ```
-
-Cada Bounded Context sigue la estructura DDD:
-- **domain/**: Lógica de negocio (aggregates, entities, value objects, commands, queries)
-- **application/**: Casos de uso (command services, query services)
-- **infrastructure/**: Implementaciones técnicas (repositories, persistencia)
-- **interfaces/**: Capa de presentación (REST controllers, resources, transformers)
 
 ## 🚀 Instalación
 
@@ -49,216 +43,118 @@ pip install -r requirements.txt
 python main.py
 ```
 
-La API estará disponible en:
-- **API**: http://localhost:8000
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
+## 🧪 Ejecución de Pruebas
 
-## 📚 Documentación API
-
-### Bounded Context: IAM & Profile
-
-#### Authentication Endpoints
-
-**POST /api/v1/auth/register/producer**
-Registra un nuevo productor independiente.
-
-```json
-{
-  "email": "juan@email.com",
-  "password": "password123",
-  "first_name": "Juan",
-  "last_name": "Pérez",
-  "document_number": "12345678",
-  "document_type": "DNI",
-  "phone_number": "+57 300 123 4567",
-  "city": "Chinchiná",
-  "country": "Perú",
-  "farm_name": "Finca El Cafetal",
-  "latitude": 4.9824,
-  "longitude": -75.6086,
-  "altitude": 1500,
-  "region": "Caldas",
-  "hectares": 10.5,
-  "coffee_varieties": ["CATURRA", "CASTILLO"],
-  "production_capacity": 5000
-}
+**Primero, ejecutaremos el comando para instalar pytest-mock si no está instalado:**
+```bash
+pip install pytest pytest-mock
 ```
 
-**POST /api/v1/auth/register/cooperative**
-Registra una nueva cooperativa.
-
-```json
-{
-  "email": "info@cooperativa.com",
-  "password": "password123",
-  "cooperative_name": "Cooperativa Cafetera del Sur",
-  "legal_registration_number": "900.123.456-7",
-  "phone_number": "+57 300 123 4567",
-  "address": "Calle Principal 123",
-  "city": "Manizales",
-  "country": "Perú",
-  "legal_representative_name": "María García",
-  "legal_representative_email": "maria@cooperativa.com",
-  "processing_capacity": 100000,
-  "certifications": ["ORGANIC", "FAIR_TRADE"]
-}
+**Ejecutar todas las pruebas de un integration test**
+```bash
+python -m pytest us_12_integration_test.py -v
 ```
 
-**POST /api/v1/auth/login**
-Inicia sesión y obtiene token JWT.
-
-```json
-{
-  "email": "oscargabrielaranda@gmail.com",
-  "password": "password123"
-}
+```bash
+python -m pytest us_13_integration_test.py -v
 ```
 
-Response:
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer",
-  "user": {
-    "id": 1,
-    "email": "juan@email.com",
-    "user_type": "PRODUCER",
-    "status": "ACTIVE",
-    "created_at": "2024-01-15T10:30:00"
-  }
-}
+```bash
+python -m pytest us_14_integration_test.py -v```
 ```
 
-#### Profile Endpoints
+**Ejecutar unit test específica**
 
-**GET /api/v1/profiles/{user_id}**
-Obtiene el perfil completo de un usuario.
+Integration Test US-12
 
-**GET /api/v1/profiles/producer/{producer_id}**
-Obtiene el perfil específico de un productor.
-
-**GET /api/v1/profiles/cooperative/{cooperative_id}**
-Obtiene el perfil específico de una cooperativa.
-
-### Bounded Context: Coffee Lot Management
-
-**POST /api/v1/coffee-lots**
-Registra un nuevo lote de café.
-
-```json
-{
-  "producer_id": 1,
-  "harvest_date": "2024-01-15",
-  "coffee_variety": "CATURRA",
-  "quantity": 500,
-  "processing_method": "WASHED",
-  "latitude": 4.9824,
-  "longitude": -75.6086,
-  "altitude": 1500,
-  "soil_type": "Volcanic",
-  "climate_zone": "Tropical",
-  "farm_section": "Lote A"
-}
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_detectar_granos_con_grietas -v
 ```
 
-**GET /api/v1/coffee-lots/{lot_id}**
-Obtiene información de un lote específico.
-
-**PUT /api/v1/coffee-lots/{lot_id}**
-Actualiza información de un lote.
-
-**DELETE /api/v1/coffee-lots/{lot_id}?deletion_reason=motivo**
-Elimina un lote (solo si está en estado REGISTERED).
-
-**PATCH /api/v1/coffee-lots/{lot_id}/status**
-Cambia el estado de un lote.
-
-```json
-{
-  "new_status": "PROCESSING",
-  "change_reason": "Iniciando procesamiento"
-}
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_detectar_granos_oscuros_defectuosos -v
 ```
 
-**GET /api/v1/coffee-lots/producer/{producer_id}**
-Obtiene todos los lotes de un productor.
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_detectar_granos_verdes_inmaduros -v
+```
 
-Query parameters:
-- `status`: Filtrar por estado (REGISTERED, PROCESSING, CLASSIFIED, etc.)
-- `harvest_year`: Filtrar por año de cosecha
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_penalizacion_por_forma_irregular -v
+```
 
-**GET /api/v1/coffee-lots/search/advanced**
-Búsqueda avanzada de lotes.
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_reporte_estadistico_defectos_lot -v
+```
 
-Query parameters:
-- `variety`: Variedad de café
-- `processing_method`: Método de procesamiento
-- `min_altitude`: Altitud mínima
-- `max_altitude`: Altitud máxima
-- `start_date`: Fecha inicio
-- `end_date`: Fecha fin
-- `status`: Estado del lote
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_manejo_error_imagen_invalida -v
+```
 
+```bash
+python -m pytest us_12_integration_test.py::TestUS12DeteccionDefectosCriticos::test_manejo_error_sin_granos_detectados -v
+```
 
-## 🗄️ Base de Datos
+Integration Test US-13
 
-La aplicación utiliza PostgreSQL en Supabase con las siguientes características:
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_medicion_porcentajes_color_precisa -v
+```
 
-- **ORM**: SQLAlchemy
-- **Migraciones**: Alembic
-- **Connection Pooling**: Configurado para pooler de Supabase
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_medicion_tamano_grano_area -v
+```
 
-### Tablas principales
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_bonificacion_por_tamano_grande -v
+```
 
-#### users
-- Usuarios del sistema (productores y cooperativas)
-- Autenticación con bcrypt
-- Relaciones one-to-one con perfiles
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_penalizacion_por_tamano_pequeno -v
+```
 
-#### producer_profiles
-- Información detallada de productores
-- Datos de finca y capacidad de producción
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_uniformidad_lote_homogeneo -v
+```
 
-#### cooperative_profiles
-- Información de cooperativas
-- Capacidad de procesamiento y certificaciones
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_almacenamiento_caracteristicas_completas -v
+```
 
-#### coffee_lots
-- Lotes de café registrados
-- Información de cosecha, variedad, cantidad
-- Estados del ciclo de vida
+```bash
+python -m pytest us_13_integration_test.py::TestUS13AnalisisColorUniformidad::test_comparacion_lotes_diferentes_productores -v
+```
 
-#### origin_data
-- Datos detallados de origen geográfico
-- Altitud, coordenadas, tipo de suelo
+Integration Test US-14
 
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_clasificacion_categoria_specialty -v
+```
 
-## 🔐 Seguridad
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_clasificacion_categoria_premium -v
+```
 
-- **Autenticación**: JWT (JSON Web Tokens)
-- **Hashing de contraseñas**: bcrypt
-- **Validaciones**: Pydantic models
-- **CORS**: Configurado para orígenes permitidos
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_reporte_lote_calidad_promedio -v
+```
 
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_distribucion_categorias_por_lote -v
+```
 
-## 📝 Próximos Pasos
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_categoria_predominante_lote -v
+```
 
-Los siguientes Bounded Contexts están pendientes de implementación:
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_almacenamiento_imagen_cloudinary -v
+```
 
-1. **Grain Classification** ✨
-   - Sesiones de clasificación con IA
-   - Detección de defectos
-   - Cálculo de métricas de calidad
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_tiempo_procesamiento_registrado -v
+```
 
-2. **Traceability & Certification** 🔗
-   - Registro de trazabilidad
-   - Generación de QR codes
-   - Integración con blockchain
-   - Emisión de certificados digitales
-
-3. **Reporting & Analytics** 📈
-   - Generación de reportes
-   - Análisis de tendencias
-   - Dashboards interactivos
-   - Alertas automáticas
+```bash
+python -m pytest us_14_integration_test.py::TestUS14ClasificacionEstandaresInternacionales::test_persistencia_sesion_completa -v
+```
