@@ -10,12 +10,31 @@ import cv2
 from unittest.mock import Mock
 from sqlalchemy.orm import Session
 
+# ============================================================================
+# GRAIN CLASSIFICATION IMPORTS
+# ============================================================================
 from grain_classification.application.internal.classification_service import ClassificationApplicationService
 from grain_classification.application.internal.classification_query_service import ClassificationQueryService
 from grain_classification.domain.services.grading_service import QualityGradingService
 from grain_classification.infrastructure.cv_service import CVService
 from grain_classification.infrastructure.ml_predictor_service import MLPredictorService
 from grain_classification.infrastructure.cloudinary_service import CloudinaryService
+
+# ============================================================================
+# COFFEE LOT MANAGEMENT IMPORTS
+# ============================================================================
+from coffee_lot_management.application.internal.commandservices.coffee_lot_command_service import (
+    CoffeeLotCommandService
+)
+from coffee_lot_management.application.internal.queryservices.coffee_lot_query_service import (
+    CoffeeLotQueryService
+)
+from coffee_lot_management.domain.services.lot_number_generator_service import (
+    LotNumberGeneratorService
+)
+from coffee_lot_management.infrastructure.persistence.database.repositories.coffee_lot_repository import (
+    CoffeeLotRepository
+)
 
 
 # ============================================================================
@@ -39,7 +58,7 @@ def mock_db_session():
 
 
 # ============================================================================
-# FIXTURES DE SERVICIOS DE INFRAESTRUCTURA
+# FIXTURES DE SERVICIOS DE INFRAESTRUCTURA - GRAIN CLASSIFICATION
 # ============================================================================
 
 @pytest.fixture
@@ -135,7 +154,55 @@ def grading_service():
 
 
 # ============================================================================
-# FIXTURES DE SERVICIOS DE APLICACIÓN
+# FIXTURES DE REPOSITORIOS - COFFEE LOT MANAGEMENT
+# ============================================================================
+
+@pytest.fixture
+def mock_coffee_lot_repository():
+    """
+    Simula el repositorio de lotes de café.
+
+    Returns:
+        Mock: CoffeeLotRepository mockeado con operaciones CRUD
+    """
+    repository = Mock(spec=CoffeeLotRepository)
+
+    # Configurar save() para retornar el objeto que recibe (comportamiento típico de repositorios)
+    def save_side_effect(coffee_lot):
+        # Simular asignación de ID si no tiene uno
+        if coffee_lot.id is None:
+            coffee_lot.id = 1
+        return coffee_lot
+
+    repository.save.side_effect = save_side_effect
+    repository.find_by_id.return_value = None
+    repository.find_by_producer_id.return_value = []
+    repository.find_by_lot_number.return_value = None
+    repository.exists_by_lot_number.return_value = False
+    repository.delete.return_value = None
+
+    return repository
+
+
+# ============================================================================
+# FIXTURES DE SERVICIOS DE DOMINIO - COFFEE LOT MANAGEMENT
+# ============================================================================
+
+@pytest.fixture
+def mock_lot_number_service():
+    """
+    Simula el servicio de generación de números de lote.
+
+    Returns:
+        Mock: LotNumberGeneratorService mockeado
+    """
+    service = Mock(spec=LotNumberGeneratorService)
+    service.generate_lot_number.return_value = "LOT-2024-0001"
+    return service
+
+
+# ============================================================================
+# FIXTURES DE SERVICIOS DE APLICACIÓN - GRAIN CLASSIFICATION
 # ============================================================================
 
 @pytest.fixture
@@ -178,6 +245,46 @@ def query_service(mock_db_session):
 
 
 # ============================================================================
+# FIXTURES DE SERVICIOS DE APLICACIÓN - COFFEE LOT MANAGEMENT
+# ============================================================================
+
+@pytest.fixture
+def coffee_lot_command_service(mock_db_session, mock_coffee_lot_repository, mock_lot_number_service):
+    """
+    Servicio de comandos para Coffee Lot configurado con dependencias mockeadas.
+
+    Args:
+        mock_db_session: Sesión de base de datos mockeada
+        mock_coffee_lot_repository: Repositorio mockeado
+        mock_lot_number_service: Servicio generador de números mockeado
+
+    Returns:
+        CoffeeLotCommandService: Servicio listo para testing
+    """
+    service = CoffeeLotCommandService(db=mock_db_session)
+    service.repository = mock_coffee_lot_repository
+    service.lot_number_service = mock_lot_number_service
+    return service
+
+
+@pytest.fixture
+def coffee_lot_query_service(mock_db_session, mock_coffee_lot_repository):
+    """
+    Servicio de consultas para Coffee Lot configurado con dependencias mockeadas.
+
+    Args:
+        mock_db_session: Sesión de base de datos mockeada
+        mock_coffee_lot_repository: Repositorio mockeado
+
+    Returns:
+        CoffeeLotQueryService: Servicio listo para testing
+    """
+    service = CoffeeLotQueryService(db=mock_db_session)
+    service.repository = mock_coffee_lot_repository
+    return service
+
+
+# ============================================================================
 # FIXTURES DE DATOS DE PRUEBA
 # ============================================================================
 
@@ -207,6 +314,7 @@ def pytest_configure(config):
     Configuración global de pytest.
     Registra markers personalizados para categorizar tests.
     """
+    # Markers para User Stories de Grain Classification
     config.addinivalue_line(
         "markers", "us12: Tests para User Story 12 - Detección de Defectos"
     )
@@ -216,6 +324,28 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "us14: Tests para User Story 14 - Clasificación por Estándares"
     )
+
+    # Markers para User Stories de Coffee Lot Management
+    config.addinivalue_line(
+        "markers", "us06: Tests para User Story 06 - Creación de Lotes"
+    )
+    config.addinivalue_line(
+        "markers", "us07: Tests para User Story 07 - Edición de Información de Lote"
+    )
+    config.addinivalue_line(
+        "markers", "us08: Tests para User Story 08 - Visualización de Lotes por Productor"
+    )
+    config.addinivalue_line(
+        "markers", "us09: Tests para User Story 09 - Visualización de Lotes por Cooperativa"
+    )
+    config.addinivalue_line(
+        "markers", "us10: Tests para User Story 10 - Búsqueda Rápida de Lotes"
+    )
+    config.addinivalue_line(
+        "markers", "us11: Tests para User Story 11 - Eliminación de Lotes"
+    )
+
+    # Markers generales
     config.addinivalue_line(
         "markers", "integration: Tests de integración completos"
     )
